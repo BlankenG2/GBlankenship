@@ -1,0 +1,308 @@
+<HTML>
+
+<HEAD>
+
+<TITLE>Vergence Contextor Testing Tool</TITLE>
+
+<OBJECT id="ContextorControl"
+        data="data:application/x-oleobject;base64,96x4h6lc0xGHJwBgsLXhNwADAADYEwAA2BMAAA=="
+        classid="CLSID:8778ACF7-5CA9-11D3-8727-0060B0B5E137"
+        name="ContextorControl"
+        VIEWASTEXT>
+</OBJECT>
+
+<SCRIPT LANGUAGE="JavaScript">
+
+	var version = "2.0a"
+//	the application context control information (for ICN)
+//                     1234567890123456789012345678901
+    var contextName = "patient.id.mrn.nationalidnumber";
+//	the valid context names are:  (Home Telehealth uses ICN)
+//		patient.co.patientname - patient name
+//		patient.id.mrn.dfn_nnn - dfn with facility number (nnn)
+//		patient.id.mrn.nationalidnumber - icn
+    var contextNameLength = 31;
+    //appname is the name of the application
+    //the application name must be unique on the workstation
+    //a suggested name for a vendor application is “200TxDesktop0”
+    //the vendor facility numbers are listed in the HL7 Overview
+    //if a vendor allows for multiple desktops,
+    //     the name must have a unique suffix for each copy
+    var appname = "200TxDesktop0"   // desktop for Home Telehealth testing
+    //appcode is the application passcode, must be provided for User context
+    //the passcode is not used for patient context
+    var appcode = "";
+    //surveyable sets the application to be polled prior to the context changing
+    //true will cause the "Pending" event to be generated
+    //false will cause the "Pending" event to be not generated
+    var surveyable = true;
+	//activity trace information
+    var lastEvent;
+    var connectRequest;
+    var displayVault;
+    var proposal;
+    var proposalResponse;
+
+
+</SCRIPT>
+
+<SCRIPT LANGUAGE="JavaScript" FOR="window" EVENT="onLoad()">
+
+    //display OnLoad as last event
+    lastEvent = document.getElementById("LastEvent");
+    lastEvent.innerHTML = "onLoad()";
+	connectRequest = document.getElementById("ConnectRequest");
+	connectRequest.innerHTML = "not connected";
+	displayVault = document.getElementById("Vault");
+    displayVault.innerHTML = "not connected";
+    proposal = document.getElementById("Proposal");
+    proposal.innerHTML = "not connected";
+    proposalResponse = document.getElementById("ProposalResponse");
+    proposalResponse.innerHTML = "not connected";
+    var versionNumber = document.getElementById("Version");
+    versionNumber.innerHTML = version;
+
+    //the basis for patient selection on the web page
+	document.form1.contextIdentifier.value = contextName;
+
+    //appname is the name of the application
+    //the application name must be unique on the workstation
+    document.form1.currentApplication.value = appname
+
+</SCRIPT>
+
+<SCRIPT LANGUAGE="JavaScript" FOR="ContextorControl" EVENT="Pending(contextItems)">
+
+    //display Pending as last event
+    lastEvent.innerHTML = "Pending(contextItems)"
+    proposalResponse.innerHTML = "not required"
+
+    //display the Pending event received
+    proposal.innerHTML = "no active proposal"
+
+	//If your application is surveyable this event will be fired. Your app should
+	//only be surveyable if you can detect that your app has unsaved data.
+	if(checkVault(contextItems)) {
+	    proposalResponse.innerHTML = "Pending(upon commit)"
+		//application should switch to display new context.
+	} else {
+	    proposalResponse.innerHTML = "Already accepted"
+	}
+
+
+</SCRIPT>
+
+<SCRIPT LANGUAGE="JavaScript" FOR="ContextorControl" EVENT="Committed">
+
+    //display Committed as last event
+    lastEvent.innerHTML = "Committed"
+    proposalResponse.innerHTML = "Commit"
+    //check to see if the patient changed
+    if( document.form1.pendingPatient.value=="" ) {
+	    //there is not a pending change
+		var contextItems = ContextorControl.CurrentContext;
+    	if(checkVault(contextItems)) {
+	    	displayVault.innerHTML = "commit (found/current) "+document.form1.pendingPatient.value+"/"+document.form1.currentPatient.value
+			document.form1.currentPatient.value = document.form1.pendingPatient.value;
+			document.form1.pendingPatient.value = "";
+			//application should switch to display new context.
+    	}
+    } else if( document.form1.pendingPatient.value!=document.form1.currentPatient.value ) {
+    	//look for vault changes that did not generate a pending survey
+	    displayVault.innerHTML = "commit (pending/current) "+document.form1.pendingPatient.value+"/"+document.form1.currentPatient.value
+		document.form1.currentPatient.value = document.form1.pendingPatient.value;
+		document.form1.pendingPatient.value = "";
+		//application should switch to display new context.
+	} else {
+	    proposal.innerHTML = "no pending data to commit"
+	    displayVault.innerHTML = "commit "+document.form1.pendingPatient.value+"/"+document.form1.currentPatient.value
+	}
+</SCRIPT>
+
+
+<SCRIPT LANGUAGE="JavaScript" FOR="ContextorControl" EVENT="Canceled">
+
+    //display Canceled as last event
+    lastEvent.innerHTML = "Canceled"
+    proposalResponse.innerHTML = "Cancel"
+
+	//The context change was canceled so clear out the pending data
+
+	document.form1.pendingPatient.value = "";
+</SCRIPT>
+
+<SCRIPT language="javascript">
+//	check the vault for change
+function checkVault(contextItems) {
+
+	//Check to see if something has changed
+	//Create an enumerator using the contextItems passed in.
+	var patientChanged = false;
+	document.form1.pendingPatient.value = "";
+	var coll = new Enumerator(contextItems);
+	for(; !coll.atEnd(); coll.moveNext()) {
+		//display the vault
+		var itemName = coll.item().name;
+		var itemValue = coll.item().value
+    	displayVault.innerHTML = "found "+itemName+"/"+itemValue
+	    proposal.innerHTML = itemName+"/"+itemValue
+		if (itemName.substr(0,contextNameLength)==contextName.substr(0,contextNameLength)) {
+			if (document.form1.currentPatient.value != itemValue) {
+				//the patient has changed
+				document.form1.contextIdentifier.value = itemName;
+				document.form1.pendingPatient.value = itemValue;
+			    proposal.innerHTML = document.form1.pendingPatient.value;
+				contextName = itemName;
+				patientChanged = true;
+			} else {
+			    proposal.innerHTML = "proposal is for current patient";
+			}
+		} else {
+		    proposal.innerHTML = "*error* proposal not from context "+contextName;
+		}
+	}
+	return(patientChanged);
+}
+
+//This function will change the application name
+function clickAppl() {
+
+    //display the button click as last event
+    lastEvent.innerHTML = "Application"
+
+    appname = document.form1.currentApplication.value
+}
+
+//This function will connect to the contextor
+function clickConnect() {
+
+    //display the button click as last event
+    lastEvent.innerHTML = "Connect"
+
+    //display the connection attempted
+    connectRequest.innerHTML = "connect " + appname +"/" + appcode + " to contextor with surveyable as " + surveyable
+    proposal.innerHTML = "no active proposal"
+    proposalResponse.innerHTML = "no proposal response expected"
+
+    //join and bind to the context
+    ContextorControl.Run(appname, appcode, surveyable);
+
+
+    //best practices mandates that one join the current context at startup
+    //get the current context
+	var contextItems = ContextorControl.CurrentContext;
+	if(checkVault(contextItems)) {
+		document.form1.currentPatient.value = document.form1.pendingPatient.value;
+		document.form1.pendingPatient.value = "";
+	    proposalResponse.innerHTML = "Connected"
+		//application should switch to display new context.
+	} else {
+	    proposalResponse.innerHTML = "No active context"
+	}
+    lastEvent.innerHTML = "Connect completed"
+}
+
+//This function will set the new context
+function clickPropose() {
+
+    //display the button click as last event
+    lastEvent.innerHTML = "Propose"
+
+	var newPatient=document.form1.newPatient.value;
+
+	//create a context item collection
+	var contextorItems = new ActiveXObject("Sentillion.ContextItemCollection");
+
+	//create a context item to put into the collection
+    var item = new ActiveXObject("Sentillion.ContextItem");
+
+	//  set the context item value using the context found
+	item.name = document.form1.contextIdentifier.value;
+	item.value = document.form1.newPatient.value;
+	//display proposed values
+   	proposal.innerHTML = item.name+"/"+item.value
+    proposalResponse.innerHTML = "awaiting proposal response"
+	contextorItems.Add( item );
+
+	//start the context change
+	//TO DO: there may be some exceptions to catch, like transaction already in progress
+	ContextorControl.StartContextChange();
+
+	//instruct the contextor object to go ahead and commit the context
+	//if there are no objectsions from other applications.
+	var commit = true;
+
+	var response = ContextorControl.EndContextChange(commit, contextorItems);
+
+	//check the completion status
+	if (response == 1) 	{
+		//the context was changed
+	    proposalResponse.innerHTML = "Committed"
+	   	displayVault.innerHTML = item.name+"/"+item.value
+		document.form1.currentPatient.value = newPatient;
+		document.form1.newPatient.value = "";
+	} else if (response == 2) {
+		//the user canceled the context change
+	    proposalResponse.innerHTML = "Cancelled"
+	}
+	else if (response == 3)	{
+		//the user chose to break this app away from the context
+	    proposalResponse.innerHTML = "Link broken"
+
+		//just rejoin the context for now.
+		ContextorControl.Resume
+	} else {
+ 	   proposalResponse.innerHTML = "*error* unknown response value: " + response;
+	}
+}
+</script>
+
+
+</HEAD>
+
+	<BODY>
+		<form name="form1">
+			<P>
+				Use the Application field to adjust the application name, if necessary;
+				click [Application] to change the application name.
+				<br>
+				Click [Connect] to connect to the vault.
+				<br>
+				Enter an MRN (Medical Record Number) to select a patient in the Proposal field,
+				then click [Propose] to initiate the context change.
+				<br>
+				Click [Cancel] to to close the application.
+			</P>
+			<P>
+				Application:
+					<INPUT type="text" name="currentApplication">
+				<br>
+				Current MRN: <INPUT type="text" name="currentPatient">
+				<br>
+				Proposal MRN: <INPUT type="text" name="newPatient">
+				<br>
+				Using item: <INPUT type="text" size=40 name="contextIdentifier">
+			</P>
+			<INPUT type="button" value="  Application  " name="btn_appl" onclick="clickAppl()">&nbsp;&nbsp;&nbsp;&nbsp;
+			<INPUT type="button" value="  Connect  "     name="btn_connect" onclick="clickConnect()">&nbsp;&nbsp;&nbsp;&nbsp;
+			<INPUT type="button" value="  Propose  "     name="btn_propose" onclick="clickPropose()">&nbsp;&nbsp;&nbsp;&nbsp;
+			<INPUT type="button" value="  Cancel  "      name="btn_cancel" onclick="javascript:window.close()">
+			Pending data:
+			<INPUT type="text"   value = ""              name="pendingPatient">
+			<P> Contextor application version <span id="Version"></span>
+				<br>
+				Activity trace
+				<br>
+				Last event: <span id="LastEvent"></span>
+				<br>
+				ConnectRequest: <span id="ConnectRequest"></span>
+				<br>
+				Vault status: <span id="Vault"></span>
+				<br>
+				Proposal: <span id="Proposal"></span>
+				<br>
+				Proposal Response: <span id="ProposalResponse"></span>
+			</P>
+		</form>
+	</BODY>
+</HTML>

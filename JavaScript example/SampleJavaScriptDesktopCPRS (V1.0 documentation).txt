@@ -1,0 +1,39 @@
+See SDK (SDKDevGuide.pdf) "Application SDK Developers Guide 3.3 for Windows Applications"
+
+Procedures 
+(unnamed)	creates context token name
+
+		the default is <patient.id.mrn.nationalidnumber>
+		
+		this is the appropriate Home Telehealth value for a production system
+		the expectation is that CPRS will be started first in a test environment
+		the script will detect this change and respond appropriately
+		
+		Home Telehealth expects to use the ICN as the context token
+		Home Telehealth is not able to process patients without an ICN
+				
+(onLoad)	invoked when the page is loaded
+		reads the vault looking for an ICN token (either test or production)
+		(needs to set the vault to a "null" ICN and when a patient is evenually selected)
+		will change the token name if a token exists to reflect test/production
+		needs to be modified if "survey" mode is not required
+
+(Pending(contextItems) invoked when the context change is requested
+		(need to clear current patient - save data, or complain using SetSurveyResponse)
+		looks for ICN token
+		if ICN token is present, the new new value is saved (for commit)
+
+(Committed)	invoked when the context change is to be placed into effect
+		brings the patient that was offered in the "pending" into display
+		if the "offered" and "committed" patient is not available/allowed, the display remains blank
+		needs to be modified if "survey" mode is not required
+		
+(Cancelled)	invoked	when context change is cancelled
+		(a surveyed system said, "no")
+		the display remains blank
+		
+(btn_click)	invoked when patient context is to be switched by application
+		the code places only one token in the vault (ICN)
+		the transition is started and then committed 
+		if all parties accept the new patient should be displayed
+		otherwise the context should be cancelled.
